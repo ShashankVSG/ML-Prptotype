@@ -1,0 +1,32 @@
+#Getting the file name from the user
+file_name = str((input("Enter the name of the file to be opened: ")))
+#Customizing the file path for appropriate directory
+file_path = "CV/" + file_name
+print(file_path)
+#Getting the prefix and suffix of the file
+file_prefix, file_suffix = file_name.split('.')
+print(file_suffix)
+#Declaring the scope of the variable 'text'
+text = ""
+
+#To open files of different formats
+try:
+    if file_suffix == "docx":
+        import docx2txt
+        #Extract text from a docx file
+        text = docx2txt.process(file_path)
+        #print(text)
+    elif file_suffix == "pdf":
+        from pdfminer.high_level import extract_text
+        text = extract_text(file_path)
+        #print(text)
+except:
+    #Printing the error message if any error occurs
+    print("Invalid file format")
+finally:
+    #Writing the parsed into a file of appropriate format
+    cv_directory = "Structured CV/" + file_prefix
+    #Opening a new file and copying the file contents
+    f = open(cv_directory, "w")
+    f.write(text)
+    f.close()
