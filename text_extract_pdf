@@ -1,0 +1,15 @@
+"""
+Created on Tue Apr 19 13:16:13 2022
+
+@author: shashank.v
+"""
+file_path = "CV/Yash Shah.pdf"
+from pdfminer.high_level import extract_text
+text = extract_text(file_path)
+print(repr(text))
+
+cv_directory = "Structured CV/" + "Yash Shah"
+#Opening a new file and copying the file contents
+f = open(cv_directory, "w", encoding='utf-8')
+f.write(text)
+f.close()
