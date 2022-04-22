@@ -1,0 +1,112 @@
+import pandas as pd
+import spacy
+import docx2txt
+from pdfminer.high_level import extract_text
+import re
+from spacy.matcher import Matcher
+import json
+
+nlp = spacy.load('en_core_web_sm')
+
+
+def extract_name(resume_text):
+    nlp_text = nlp(resume_text)
+    
+    # First name and Last name are always Proper Nouns
+    pattern = [{'POS': 'PROPN'}, {'POS': 'PROPN'}]
+    # initialize matcher with a vocab
+    matcher = Matcher(nlp.vocab)
+    matcher.add('NAME', [pattern], on_match=None)
+    
+    matches = matcher(nlp_text)
+    
+    for match_id, start, end in matches:
+        span = nlp_text[start:end]
+        return span.text
+    
+def extract_mobile_number(text):
+    phone = re.findall(re.compile(r'(?:(?:\+?([1-9]|[0-9][0-9]|[0-9][0-9][0-9])\s*(?:[.-]\s*)?)?(?:\(\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\s*\)|([0-9][1-9]|[0-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\s*(?:[.-]\s*)?)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\s*(?:[.-]\s*)?([0-9]{4})(?:\s*(?:#|x\.?|ext\.?|extension)\s*(\d+))?'), text)
+    
+    if phone:
+        number = ''.join(phone[0])
+        if len(number) > 10:
+            return '+' + number
+        else:
+            return number
+        
+def extract_email(text):
+    email = re.findall("([^@|\s]+@[^@]+\.[^@|\s]+)", text)
+    if email:
+        try:
+            return email[0].split()[0].strip(';')
+        except IndexError:
+            return None
+    
+def extract_skills(resume_text):
+    nlp_text = nlp(resume_text)
+    noun_chunks = []
+
+    # removing stop words and implementing word tokenization
+    tokens = [token.text for token in nlp_text if not token.is_stop]
+    
+    # reading the csv file
+    data = pd.read_csv("skills.csv") 
+    
+    # extract values
+    skills = list(data.columns.values)
+    
+    skillset = []
+    
+    for chuck in nlp_text.noun_chunks:
+        noun_chunks.append(chuck)
+    
+    # check for one-grams (example: python)
+    for token in tokens:
+        if token.lower() in skills:
+            skillset.append(token)
+    
+    # check for bi-grams and tri-grams (example: machine learning)
+    for token in noun_chunks:
+        token = token.text.lower().strip()
+        if token in skills:
+            skillset.append(token)
+    
+    return [i.capitalize() for i in set([i.lower() for i in skillset])]
+
+#Getting the file name from the user
+file_name = str((input("Enter the name of the file to be opened: ")))
+#Customizing the file path for appropriate directory
+file_path = "CV/" + file_name
+print(file_path)
+#Getting the prefix and suffix of the file
+file_prefix, file_suffix = file_name.split('.')
+print(file_suffix)
+#Declaring the scope of the variable 'text'
+text = ""
+
+#To open files of different formats
+try:
+    if file_suffix == "docx":
+        #Extract text from a docx file
+        text = docx2txt.process(file_path)
+        #print(text)
+    elif file_suffix == "pdf":
+        text = extract_text(file_path)
+        #print(text)
+except:
+    #Printing the error message if any error occurs
+    print("Invalid file format")
+finally:
+    result = {}
+    result['Name'] = extract_name(text)
+    result['Mobile Number'] = extract_mobile_number(text)
+    result['Email ID'] = extract_email(text)
+    result['Skills'] = extract_skills(text)
+    result_string = json.dumps(result)
+    #Writing the parsed into a file of appropriate format
+    cv_directory = "Structured CV/" + file_prefix
+    #Opening a new file and copying the file contents
+    f = open(cv_directory, "w")
+    f.write(result_string)
+    f.close()
+    print(result_string)
