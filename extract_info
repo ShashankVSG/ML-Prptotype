@@ -106,7 +106,7 @@ finally:
     #Writing the parsed into a file of appropriate format
     cv_directory = "Structured CV/" + file_prefix
     #Opening a new file and copying the file contents
-    f = open(cv_directory, "w")
+    f = open(cv_directory, "w", encoding='utf-8')
     f.write(result_string)
     f.close()
     print(result_string)
