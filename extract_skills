@@ -1,7 +1,7 @@
-
 #Extracting skills from a resume of docx format
 import pandas as pd
 import spacy
+from nltk.probability import FreqDist
 
 # load pre-trained model
 nlp = spacy.load('en_core_web_sm')
@@ -11,7 +11,7 @@ def extract_skills(resume_text):
     nlp_text = nlp(resume_text)
 
     # removing stop words and implementing word tokenization
-    tokens = [token.text for token in nlp_text if not token.is_stop]
+    tokens = [token.text.lower() for token in nlp_text if not token.is_stop]
     
     # reading the csv file
     data = pd.read_csv("skills.csv") 
@@ -26,15 +26,17 @@ def extract_skills(resume_text):
     
     # check for one-grams (example: python)
     for token in tokens:
-        if token.lower() in skills:
+        if token in skills:
             skillset.append(token)
     
     # check for bi-grams and tri-grams (example: machine learning)
     for token in noun_chunks:
-        token = token.text.lower().strip()
+        token = token.text.strip()
         if token in skills:
             skillset.append(token)
-    
+            
+    fdist = FreqDist(skillset)
+    print(fdist.most_common())
     return [i.capitalize() for i in set([i.lower() for i in skillset])]
 
 file_name = str((input("Enter the name of the file to be opened: ")))
@@ -44,5 +46,5 @@ import docx2txt
 #Extract text from a docx file
 text = docx2txt.process(file_path)
 #print(text)
-print(extract_skills(text))
-#print(noun_chunks)
+extract_skills(text)
+
