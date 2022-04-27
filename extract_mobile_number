@@ -1,0 +1,26 @@
+"""
+Created on Thu Apr 21 13:56:10 2022
+
+@author: shashank.v
+"""
+#Extracting the mobile number from a resume of docx format
+import re
+
+def extract_mobile_number(text):
+    phone = re.findall(re.compile(r'(?:(?:\+?([1-9]|[0-9][0-9]|[0-9][0-9][0-9])\s*(?:[.-]\s*)?)?(?:\(\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\s*\)|([0-9][1-9]|[0-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\s*(?:[.-]\s*)?)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\s*(?:[.-]\s*)?([0-9]{4})(?:\s*(?:#|x\.?|ext\.?|extension)\s*(\d+))?'), text)
+    
+    if phone:
+        number = ''.join(phone[0])
+        if len(number) > 10:
+            return '+' + number
+        else:
+            return number
+        
+file_name = str((input("Enter the name of the file to be opened: ")))
+#Customizing the file path for appropriate directory
+file_path = "CV/" + file_name
+import docx2txt
+#Extract text from a docx file
+text = docx2txt.process(file_path)
+#print(text)
+print(extract_mobile_number(text))
