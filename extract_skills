@@ -1,24 +1,26 @@
-
 #Extracting skills from a resume of docx format
-import pandas as pd
+#import pandas as pd
 import spacy
+from nltk.probability import FreqDist
 
 # load pre-trained model
 nlp = spacy.load('en_core_web_sm')
 noun_chunks = []
 
-def extract_skills(resume_text):
+def extract_skills(resume_text, pskills, sskills):
     nlp_text = nlp(resume_text)
 
     # removing stop words and implementing word tokenization
-    tokens = [token.text for token in nlp_text if not token.is_stop]
-    
+    tokens = [token.text.lower() for token in nlp_text if not token.is_stop]
+    '''
     # reading the csv file
     data = pd.read_csv("skills.csv") 
     
     # extract values
     skills = list(data.columns.values)
-    
+    '''
+    #Combine both the skills
+    skills = pskills + sskills
     skillset = []
     
     for chuck in nlp_text.noun_chunks:
@@ -26,15 +28,54 @@ def extract_skills(resume_text):
     
     # check for one-grams (example: python)
     for token in tokens:
-        if token.lower() in skills:
+        if token in skills:
             skillset.append(token)
     
     # check for bi-grams and tri-grams (example: machine learning)
     for token in noun_chunks:
-        token = token.text.lower().strip()
+        token = token.text.strip()
         if token in skills:
             skillset.append(token)
-    
+            
+    fdist = FreqDist(skillset)
+    skills = fdist.most_common()
+    Skills = []
+    #Copy (key, value) pairs from the dictionary
+    for key, value in skills:
+        Skills.append(key)
+    print(skills)
+    #Index of the top 70% of skills
+    index = round(len(skills) * 0.7)
+    top_skills = []
+    #Copy the names of top 70% of skills
+    for skill, count in skills[: index]:
+        top_skills.append(skill)
+    print(top_skills)
+    pskills_percent = 0.0
+    sskills_percent = 0.0
+    #Calculate the individual percentage of each skill
+    p_percent = round(100 / len(pskills))
+    s_percent = round(100 / len(sskills))
+    #Compare and calculate the percentage of primary skills
+    for skill in pskills:
+        if skill in Skills:
+            if skill in top_skills:
+                pskills_percent += p_percent
+            else:
+                pskills_percent += p_percent/2
+    #Compare and calculate the percentage of secondary skills
+    for skill in sskills:
+        if skill in Skills:
+            sskills_percent += s_percent
+    #Calculate the total skills percentage
+    skills_percent = round((pskills_percent * 0.7) + (sskills_percent * 0.3))
+    print("Primary skills %:", pskills_percent)
+    print("Secondary skills %:", sskills_percent)
+    print("Skills %:", skills_percent)
+    if skills_percent >= 65:
+        print("Resume matches with the requirement")
+    else:
+        print("Resume does not matches with the requirement")
     return [i.capitalize() for i in set([i.lower() for i in skillset])]
 
 file_name = str((input("Enter the name of the file to be opened: ")))
@@ -44,5 +85,7 @@ import docx2txt
 #Extract text from a docx file
 text = docx2txt.process(file_path)
 #print(text)
-print(extract_skills(text))
-#print(noun_chunks)
+#Sample input
+pskills = ['python', 'hive', 'sql', 'hadoop', 'azure']
+sskills = ['java', 'mongodb', 'angular', 'pig']
+extract_skills(text, pskills,sskills)
