@@ -1,10 +1,12 @@
-import pandas as pd
+from os import listdir
+from os.path import isfile, join
 import spacy
 import docx2txt
 from pdfminer.high_level import extract_text
 import re
 from spacy.matcher import Matcher
 import json
+from nltk.probability import FreqDist
 
 nlp = spacy.load('en_core_web_sm')
 
@@ -42,71 +44,129 @@ def extract_email(text):
         except IndexError:
             return None
     
-def extract_skills(resume_text):
+def extract_skills(resume_text, pskills, sskills):
     nlp_text = nlp(resume_text)
     noun_chunks = []
 
     # removing stop words and implementing word tokenization
-    tokens = [token.text for token in nlp_text if not token.is_stop]
-    
+    tokens = [token.text.lower() for token in nlp_text if not token.is_stop]
+    '''
     # reading the csv file
     data = pd.read_csv("skills.csv") 
     
     # extract values
     skills = list(data.columns.values)
-    
+    '''
+    #Combine both the skills
+    skills = pskills + sskills
     skillset = []
     
     for chuck in nlp_text.noun_chunks:
         noun_chunks.append(chuck)
     
-    # check for one-grams (example: python)
+    # check for one-grams
     for token in tokens:
-        if token.lower() in skills:
-            skillset.append(token)
-    
-    # check for bi-grams and tri-grams (example: machine learning)
-    for token in noun_chunks:
-        token = token.text.lower().strip()
         if token in skills:
             skillset.append(token)
     
+    # check for bi-grams and tri-grams
+    for token in noun_chunks:
+        token = token.text.strip()
+        if token in skills:
+            skillset.append(token)
+            
+    fdist = FreqDist(skillset)
+    skills = fdist.most_common()
+    Skills = []
+    #Copy (key, value) pairs from the dictionary
+    for key, value in skills:
+        Skills.append(key)
+    #print(skills)
+    #Index of the top 70% of skills
+    index = round(len(skills) * 0.7)
+    top_skills = []
+    #Copy the names of top 70% of skills
+    for skill, count in skills[: index]:
+        top_skills.append(skill)
+    #print(top_skills)
+    pskills_percent = 0.0
+    sskills_percent = 0.0
+    #Calculate the individual percentage of each skill
+    p_percent = round(100 / len(pskills))
+    s_percent = round(100 / len(sskills))
+    #Compare and calculate the percentage of primary skills
+    for skill in pskills:
+        if skill in Skills:
+            if skill in top_skills:
+                pskills_percent += p_percent
+            else:
+                pskills_percent += p_percent/2
+    #Compare and calculate the percentage of secondary skills
+    for skill in sskills:
+        if skill in Skills:
+            sskills_percent += s_percent
+    #Calculate the total skills percentage
+    skills_percent = round((pskills_percent * 0.7) + (sskills_percent * 0.3))
+    #print("Primary skills %:", pskills_percent)
+    #print("Secondary skills %:", sskills_percent)
+    print("Skills %:", skills_percent)
+    if skills_percent >= 65:
+        print("Resume matches with the requirement")
+    else:
+        print("Resume does not matches with the requirement")
     return [i.capitalize() for i in set([i.lower() for i in skillset])]
 
-#Getting the file name from the user
-file_name = str((input("Enter the name of the file to be opened: ")))
-#Customizing the file path for appropriate directory
-file_path = "CV/" + file_name
-print(file_path)
-#Getting the prefix and suffix of the file
-file_prefix, file_suffix = file_name.split('.')
-print(file_suffix)
-#Declaring the scope of the variable 'text'
-text = ""
-
-#To open files of different formats
-try:
-    if file_suffix == "docx":
-        #Extract text from a docx file
-        text = docx2txt.process(file_path)
-        #print(text)
-    elif file_suffix == "pdf":
-        text = extract_text(file_path)
-        #print(text)
-except:
-    #Printing the error message if any error occurs
-    print("Invalid file format")
-finally:
+def extract_info(text, file_prefix):
     result = {}
     result['Name'] = extract_name(text)
     result['Mobile Number'] = extract_mobile_number(text)
     result['Email ID'] = extract_email(text)
-    result['Skills'] = extract_skills(text)
+    result['Skills'] = extract_skills(text, pskills, sskills)
     result_string = json.dumps(result)
-    #Writing the parsed into a file of appropriate format
+    #Writing the parsed info into a file of appropriate format
     cv_directory = "Structured CV/" + file_prefix
     #Opening a new file and copying the file contents
     f = open(cv_directory, "w", encoding='utf-8')
     f.write(result_string)
     f.close()
-    print(result_string)
+    #print(result_string)
+
+#Open the "Requirements.txt" file containing all the requirements
+f = open("Requirements.txt", "r")
+#Extract all the primary and secondary skills requirement
+pskills, sskills = re.findall('\[.*?\]', f.read())
+pskills = [skill.strip() for skill in pskills.strip("[]").split(',')]
+sskills = [skill.strip() for skill in sskills.strip("[]").split(',')]
+print(pskills, sskills)
+print()
+f.close()
+
+#Getting the folder name from the user
+folder_name = str((input("Enter the name of the folder to be opened: ")))
+files = [f for f in listdir(folder_name) if isfile(join(folder_name, f))]
+for file in files:
+    print()
+    print(file)
+    #Getting the prefix and suffix of the file
+    file_prefix, file_suffix = file.split('.')
+    file_suffix = file_suffix.lower()
+    #print(file_suffix)
+    file_path = folder_name + "/" + file
+    #Declaring the scope of the variable 'text'
+    text = ""
+    #To open files of different formats
+    try:
+        if file_suffix == "docx":
+            #Extract text from a docx file
+            text = docx2txt.process(file_path)
+            extract_info(text, file_prefix)
+            #print(text)
+        elif file_suffix == "pdf":
+            text = extract_text(file_path)
+            extract_info(text, file_prefix)
+            #print(text)
+        else:
+            print("Invlaid file format")
+    except:
+        #Printing the error message if any error occurs
+        print("Invalid file format")
