@@ -3,6 +3,8 @@ Created on Fri Apr 22 15:18:29 2022
 
 @author: shashank.v
 """
+from os import listdir
+from os.path import isfile, join
 import spacy
 import docx2txt
 from pdfminer.high_level import extract_text
@@ -10,6 +12,7 @@ import re
 from spacy.matcher import Matcher
 import json
 from nltk.probability import FreqDist
+import pandas as pd
 
 nlp = spacy.load('en_core_web_sm')
 
@@ -43,7 +46,7 @@ def extract_email(text):
     email = re.findall("([^@|\s]+@[^@]+\.[^@|\s]+)", text)
     if email:
         try:
-            return email[0].split()[0].strip(';')
+            return email[0].split()[0].strip(';|.,')
         except IndexError:
             return None
     
@@ -84,22 +87,25 @@ def extract_skills(resume_text, pskills, sskills):
     #Copy (key, value) pairs from the dictionary
     for key, value in skills:
         Skills.append(key)
-    print(skills)
+    #print(skills)
     #Index of the top 70% of skills
     index = round(len(skills) * 0.7)
     top_skills = []
     #Copy the names of top 70% of skills
     for skill, count in skills[: index]:
         top_skills.append(skill)
-    print(top_skills)
+    #print(top_skills)
     pskills_percent = 0.0
     sskills_percent = 0.0
     #Calculate the individual percentage of each skill
     p_percent = round(100 / len(pskills))
     s_percent = round(100 / len(sskills))
+    p_skills = []
+    s_skills = []
     #Compare and calculate the percentage of primary skills
     for skill in pskills:
         if skill in Skills:
+            p_skills.append(skill)
             if skill in top_skills:
                 pskills_percent += p_percent
             else:
@@ -107,54 +113,82 @@ def extract_skills(resume_text, pskills, sskills):
     #Compare and calculate the percentage of secondary skills
     for skill in sskills:
         if skill in Skills:
+            s_skills.append(skill)
             sskills_percent += s_percent
     #Calculate the total skills percentage
     skills_percent = round((pskills_percent * 0.7) + (sskills_percent * 0.3))
-    print("Primary skills %:", pskills_percent)
-    print("Secondary skills %:", sskills_percent)
-    print("Skills %:", skills_percent)
+    #print("Primary skills %:", pskills_percent)
+    #print("Secondary skills %:", sskills_percent)
+    #print("Skills %:", skills_percent)
+    flag = 'False'
     if skills_percent >= 65:
-        print("Resume matches with the requirement")
+        flag = 'True'
+        #print("Resume matches with the requirement")
+    '''
     else:
         print("Resume does not matches with the requirement")
-    return [i.capitalize() for i in set([i.lower() for i in skillset])]
+    '''
+    return [p_skills, s_skills, skills_percent, flag]
 
-#Getting the file name from the user
-file_name = str((input("Enter the name of the file to be opened: ")))
-#Customizing the file path for appropriate directory
-file_path = "CV/" + file_name
-print(file_path)
-#Getting the prefix and suffix of the file
-file_prefix, file_suffix = file_name.split('.')
-print(file_suffix)
-#Declaring the scope of the variable 'text'
-text = ""
-
-#To open files of different formats
-try:
-    if file_suffix == "docx":
-        #Extract text from a docx file
-        text = docx2txt.process(file_path)
-        #print(text)
-    elif file_suffix == "pdf":
-        text = extract_text(file_path)
-        #print(text)
-except:
-    #Printing the error message if any error occurs
-    print("Invalid file format")
-finally:
-    pskills = ['python', 'hive', 'sql', 'hadoop', 'azure']
-    sskills = ['java', 'mongodb', 'angular', 'pig']
+def extract_info(text, file_prefix):
+    global new
     result = {}
     result['Name'] = extract_name(text)
+    result['Primary Skills'], result['Secondary Skills'], result['Skills %'], result['Resume Match'] = extract_skills(text, pskills, sskills)
     result['Mobile Number'] = extract_mobile_number(text)
     result['Email ID'] = extract_email(text)
-    result['Skills'] = extract_skills(text, pskills, sskills)
     result_string = json.dumps(result)
-    #Writing the parsed into a file of appropriate format
+    new = new.append(result, ignore_index = True)
+
+    #Writing the parsed info into a file of appropriate format
     cv_directory = "Structured CV/" + file_prefix
     #Opening a new file and copying the file contents
     f = open(cv_directory, "w", encoding='utf-8')
     f.write(result_string)
     f.close()
-    print(result_string)
+    #print(result_string)
+
+#Open the "Requirements.txt" file containing all the requirements
+f = open("Requirements.txt", "r")
+#Extract all the primary and secondary skills requirement
+pskills, sskills = re.findall('\[.*?\]', f.read())
+pskills = [skill.strip() for skill in pskills.strip("[]").split(',')]
+sskills = [skill.strip() for skill in sskills.strip("[]").split(',')]
+print(pskills, sskills)
+print()
+f.close()
+
+#Opening a new dataframe
+new = pd.DataFrame(columns = ['Name', 'Primary Skills', 'Secondary Skills', 'Skills %', 'Resume Match', 'Mobile Number', 'Email ID'])
+
+#Getting the folder name from the user
+folder_name = str((input("Enter the name of the folder to be opened: ")))
+files = [f for f in listdir(folder_name) if isfile(join(folder_name, f))]
+for file in files:
+    print()
+    print(file)
+    #Getting the prefix and suffix of the file
+    file_prefix, file_suffix = file.split('.')
+    file_suffix = file_suffix.lower()
+    #print(file_suffix)
+    file_path = folder_name + "/" + file
+    #Declaring the scope of the variable 'text'
+    text = ""
+    #To open files of different formats
+    try:
+        if file_suffix == "docx":
+            #Extract text from a docx file
+            text = docx2txt.process(file_path)
+            extract_info(text, file_prefix)
+            #print(text)
+        elif file_suffix == "pdf":
+            text = extract_text(file_path)
+            extract_info(text, file_prefix)
+            #print(text)
+        else:
+            print("Invlaid file format")
+    except:
+        #Printing the error message if any error occurs
+        print("Invalid file format")
+    finally:
+        new.to_excel("output.xlsx")
